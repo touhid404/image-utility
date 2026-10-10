@@ -123,8 +123,10 @@ function Help({ privacy = false }) {
               </p>
               <p>
                 The site downloads its own codec files when needed. Your images
-                are never sent with those requests. There are no analytics
-                scripts or image-upload endpoints.
+                are never sent with those requests. This converter includes no
+                analytics or image-upload endpoint. The hosting provider uses
+                bot protection and may keep request logs; your selected images
+                are not included.
               </p>
             </div>
           ) : (
