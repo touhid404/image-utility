@@ -1,32 +1,45 @@
 # Image Utility
 
-A public image workbench built with React and Vite. Converts JPG, PNG, WebP, AVIF, HEIC, GIF, TIFF, BMP, and SVG in both directions and resizes with adjustable crop, fit, or stretch. Batch settings, per-image previews, individual downloads, ZIP downloads, light/dark themes, and clipboard paste are included.
+A public image conversion and resizing workspace. Change formats, adjust dimensions, and prepare a batch for download—all in your browser, with no account or image uploads.
 
-## Run locally
+![Image Utility workspace](docs/workspace.png)
 
-Requires a current Node.js release.
+## A workspace for your images
 
-```sh
-npm ci
-npm run dev
-```
+- **Convert between nine formats:** JPG, PNG, WebP, AVIF, HEIC, GIF, TIFF, BMP, and SVG.
+- **Resize to exact dimensions:** crop to fill, fit with padding, or stretch to the requested size.
+- **Fine-tune each image:** switch between thumbnails, compare the original with the output preview, and adjust individual crop positions.
+- **Work in batches:** apply shared export settings and download images individually or together as a ZIP.
+- **Control the result:** choose compression quality, preserve supported transparency, or select a background color.
+- **Bring files your way:** choose files, drag and drop, paste from the clipboard, or explore with a sample image.
+- **Choose your appearance:** light and dark themes that remember your choice, with responsive layouts for desktop and smaller screens.
 
-Build with `npm run build`; inspect the built site with `npm run preview`. Static hosting configuration is in `.openai/hosting.json`. Sites publishing uses the existing project ID and the skill's source/publish helper.
+## Privacy
 
-## Privacy and limits
+Selected images are processed on your device. Image data is not uploaded or saved in application storage, and no account is required.
 
-Conversion runs in short-lived browser workers. No image-upload API, analytics, authentication, localStorage, IndexedDB, or saved image history is used. Removing files, clearing the batch, or closing the page releases application references. Downloads are controlled by the user. Browser/OS caches and downloaded files are outside the application's storage controls.
+Only your light or dark appearance preference is remembered between visits.
 
-Start limits: 20 images per batch, 25 MB per input file, 16 megapixels per output, 16,384 pixels per output side. A 40-megapixel decoded source guard limits memory use. Device capabilities can impose lower practical limits. Processing is sequential and cancellable.
+Removing an image, clearing the batch, or closing the tab releases the application's image references. Re-encoding removes original camera and location metadata. Downloaded files remain under your control.
 
-GIF uses the first frame; TIFF uses the first page; HEIC uses the primary image. SVG input is rendered in browser image mode. SVG output contains a PNG and does not trace vectors. GIF has a 256-color palette and binary transparency. JPG/BMP flatten onto the selected background. All images are re-encoded without original camera/location metadata.
+## Format behavior
 
-Modern browsers must support WebAssembly SIMD, module workers, OffscreenCanvas, createImageBitmap, and secure-context APIs. HEIC/AVIF encoders are downloaded only when selected and can take longer on small devices. Unsupported files show per-file errors. The tested browser is current desktop Chrome, including mobile viewport emulation; real-device Safari and Firefox testing remains outstanding.
+| Format      | Result                                                                                           |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| GIF         | The first frame becomes a still image. GIF output uses up to 256 colors.                         |
+| TIFF        | The first page is converted. TIFF output contains one page.                                      |
+| HEIC        | The primary image is used.                                                                       |
+| SVG         | Input is rendered as an image. Output contains an embedded PNG rather than traced vector shapes. |
+| JPG and BMP | Transparency is replaced with the selected background color.                                     |
 
-## Codec dependencies
+The workspace displays relevant format notices before conversion.
 
-Native browser codecs are used where available. Additional codecs use `@pbk20191/icodec`, `libheif-js`, `UTIF`, `gifuct-js`, `gifenc`, and `bmp-ts`. ZIP uses `fflate`. Codec license/source references are in `public/third-party-notices.txt`; design rationale is in `design-system/MASTER.md`.
+## Processing limits
 
-## Validation
+| Limit             | Maximum       |
+| ----------------- | ------------- |
+| Images per batch  | 20            |
+| Input file size   | 25 MB         |
+| Output resolution | 16 megapixels |
 
-Nine output formats decode back to their expected dimensions; all 81 input/output pairs pass with generated fixtures. Pixel checks verify crop position, fit padding, stretch, and transparency. UI checks cover first-frame/page notices, ZIP names, invalid dimensions, malformed files, the 20-file limit, dialog keyboard behavior, light/dark contrast, and 375px overflow. Production smoke testing covers real downloads. A strict CSP smoke test passed locally; the selected Sites static delivery did not expose the configured response headers during verification. Apply `public/_headers` in your server configuration when self-hosting. Hosting bot-protection requests are independent of conversion and contain no selected image payloads. Generated QA fixtures/screenshots are ignored in `artifacts/`.
+Each image is processed in sequence. Conversion can be cancelled, and completed results remain available when another file fails.

@@ -149,9 +149,14 @@ export default function App() {
   const [items, setItems] = useState([]),
     [selectedId, setSelectedId] = useState(null),
     [settings, setSettings] = useState(INITIAL);
-  const [theme, setTheme] = useState(() =>
-    matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
-  );
+  const [theme, setTheme] = useState(() => {
+    const initial = document.documentElement.dataset.theme;
+    return initial === "light" || initial === "dark"
+      ? initial
+      : matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+  });
   const [busy, setBusy] = useState(""),
     [status, setStatus] = useState(""),
     [error, setError] = useState(""),
@@ -183,7 +188,19 @@ export default function App() {
     ["jpg", "bmp"].includes(settings.format) || !settings.transparent;
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", theme === "dark" ? "#10151d" : "#edf0f5");
   }, [theme]);
+  function switchTheme() {
+    const next = theme === "light" ? "dark" : "light";
+    setTheme(next);
+    try {
+      localStorage.setItem("image-utility-theme", next);
+    } catch {
+      // Switching still works for this visit when storage is unavailable.
+    }
+  }
   useEffect(
     () => () => {
       controller.current?.abort();
@@ -459,18 +476,19 @@ export default function App() {
       </a>
       <header className="site-header">
         <div className="header-inner">
-          <a className="brand" href="/" aria-label="Image Utility home">
+          <a className="brand" href="/">
             <span className="brand-mark">
-              <Icon as={CropIcon} />
+              <Icon as={ImageIcon} />
             </span>
             image<span className="brand-light">utility</span>
+            <span className="brand-descriptor">CONVERT + RESIZE</span>
           </a>
           <div className="header-actions">
             <Help privacy />
             <button
               className="icon-button theme-button"
               aria-label={`Switch to ${theme === "light" ? "dark" : "light"} theme`}
-              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+              onClick={switchTheme}
             >
               <Icon as={theme === "light" ? MoonIcon : SunIcon} />
             </button>
@@ -480,28 +498,141 @@ export default function App() {
       <main>
         <section className="intro">
           <div>
-            <p className="intro-kicker">THE IMAGE WORKBENCH</p>
-            <h1>
-              New format.
-              <br />
-              <span>Right size.</span>
-            </h1>
+            <h1>Your image workspace.</h1>
+            <p>Convert the format. Get the dimensions right.</p>
           </div>
-          <div className="intro-aside">
-            <p className="intro-description">
-              Convert, crop, and resize.
-              <br /> A single image or the whole batch.
-            </p>
-            <span className="local-badge">
-              <Icon as={LockClosedIcon} /> On your device. Never uploaded.
-            </span>
-          </div>
+          <span className="workspace-privacy">
+            <Icon as={LockClosedIcon} /> Files stay on your device
+          </span>
         </section>
         <section
           className="workspace"
           id="workspace"
           aria-label="Image converter"
         >
+          <aside className="batch-rail" aria-label="Image batch">
+            <div className="batch">
+              <div className="batch-heading">
+                <h2>
+                  Images{" "}
+                  <span>
+                    {items.length} / {MAX_FILES}
+                  </span>
+                </h2>
+                <div>
+                  <button
+                    className="text-button"
+                    disabled={!!busy || items.length >= MAX_FILES}
+                    onClick={() => input.current.click()}
+                  >
+                    <Icon as={PlusIcon} /> Add images
+                  </button>
+                  <button
+                    className="text-button"
+                    disabled={!!busy || !items.length}
+                    onClick={clear}
+                  >
+                    Clear all
+                  </button>
+                </div>
+              </div>
+              {!items.length && (
+                <div className="queue-empty">
+                  <Icon as={ImageIcon} />
+                  <p>Your batch starts here.</p>
+                  <span>
+                    Add up to 20 images. Switch between them to fine-tune each
+                    crop.
+                  </span>
+                </div>
+              )}
+              <ul className="file-list">
+                {items.map((item) => (
+                  <li
+                    className={item.id === selected?.id ? "active" : ""}
+                    key={item.id}
+                  >
+                    <button
+                      className="file-select"
+                      onClick={() => {
+                        setSelectedId(item.id);
+                        setOriginal(false);
+                      }}
+                      aria-pressed={item.id === selected?.id}
+                    >
+                      {item.preview ? (
+                        <img src={item.preview} alt="" />
+                      ) : (
+                        <span className="file-placeholder">
+                          <Icon as={FileIcon} />
+                        </span>
+                      )}
+                      <span className="file-details">
+                        <strong>{item.name}</strong>
+                        <span>
+                          {item.width
+                            ? `${item.width} × ${item.height} · `
+                            : ""}
+                          {sizeText(item.file.size)}
+                          {item.result
+                            ? ` → ${sizeText(item.result.size)}`
+                            : ""}
+                        </span>
+                      </span>
+                    </button>
+                    <span className={`file-status ${item.status}`}>
+                      <Icon
+                        as={
+                          item.status === "done"
+                            ? CheckCircledIcon
+                            : item.status === "error"
+                              ? ExclamationTriangleIcon
+                              : FileIcon
+                        }
+                      />
+                      <span>
+                        {
+                          {
+                            loading: "Reading",
+                            ready: "Ready",
+                            converting: "Converting",
+                            done: "Done",
+                            error: "Failed",
+                          }[item.status]
+                        }
+                      </span>
+                    </span>
+                    <button
+                      className="icon-button"
+                      disabled={!item.result || !!busy}
+                      aria-label={`Download ${item.name}`}
+                      onClick={() => saveBlob(item.result, item.outputName)}
+                    >
+                      <Icon as={DownloadIcon} />
+                    </button>
+                    <button
+                      className="icon-button"
+                      disabled={!!busy}
+                      aria-label={`Remove ${item.name}`}
+                      onClick={() => remove(item)}
+                    >
+                      <Icon as={Cross2Icon} />
+                    </button>
+                    {item.error && (
+                      <p className="file-error" role="alert">
+                        {item.error}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <p className="queue-note">
+              25 MB per image
+              <br />
+              Cleared when you close this tab.
+            </p>
+          </aside>
           <div className="work-area">
             <div className="work-toolbar">
               <div className="preview-tabs" aria-label="Preview type">
@@ -543,30 +674,33 @@ export default function App() {
                 addFiles(e.dataTransfer.files);
               }}
             >
+              {selected?.preview && (
+                <div className="canvas-filename">
+                  <Icon as={ImageIcon} />
+                  <span>{selected.name}</span>
+                </div>
+              )}
               {!items.length ? (
                 <div className="drop-zone">
-                  <div className="drop-topline">
-                    <span>YOUR IMAGES, IN.</span>
-                    <Icon as={UploadIcon} />
-                  </div>
-                  <div className="drop-main">
-                    <h2>
-                      Drop images
-                      <br />
-                      here.
-                    </h2>
-                    <p>Different files. One fresh start.</p>
-                    <button
-                      className="primary choose-button"
-                      onClick={() => input.current.click()}
-                    >
-                      Choose images <Icon as={PlusIcon} />
-                    </button>
-                  </div>
-                  <div className="drop-bottomline">
-                    <span className="upload-limit">
-                      25 MB per image · or paste from clipboard
+                  <div className="canvas-upload-mark" aria-hidden="true">
+                    <Icon as={ImageIcon} />
+                    <span>
+                      <Icon as={PlusIcon} />
                     </span>
+                  </div>
+                  <span className="canvas-eyebrow">A FRESH CANVAS</span>
+                  <h2>Drop your images here.</h2>
+                  <p>
+                    Choose a file, paste an image, or bring the whole batch.
+                  </p>
+                  <button
+                    className="primary choose-button"
+                    onClick={() => input.current.click()}
+                  >
+                    <Icon as={PlusIcon} /> Choose images
+                  </button>
+                  <div className="drop-bottomline">
+                    <span>Up to 20 images · 25 MB each</span>
                     <button className="sample-button" onClick={sample}>
                       Try a sample <Icon as={ArrowRightIcon} />
                     </button>
@@ -575,33 +709,47 @@ export default function App() {
               ) : selected?.preview ? (
                 <div className="image-workspace">
                   <div
-                    className={`image-frame ${opaque && !original ? "" : "checker"}`}
-                    style={{
-                      aspectRatio: String(frameRatio),
-                      maxWidth: `${Math.min(560, 340 * frameRatio)}px`,
-                      backgroundColor:
-                        opaque && !original ? settings.background : undefined,
-                    }}
+                    className="preview-visual"
+                    style={{ "--preview-ratio": frameRatio }}
                   >
-                    <img
-                      src={
-                        !original && selected.outputPreview
-                          ? selected.outputPreview
-                          : selected.preview
-                      }
-                      alt={`${original ? "Original" : "Output preview of"} ${selected.name}`}
-                      style={{
-                        objectFit:
-                          original || selected.outputPreview || !settings.resize
-                            ? "contain"
-                            : settings.mode === "crop"
-                              ? "cover"
-                              : settings.mode === "fit"
+                    <div className="preview-bounds">
+                      <span className="bound-corner top-left" />
+                      <span className="bound-corner top-right" />
+                      <span className="bound-corner bottom-left" />
+                      <span className="bound-corner bottom-right" />
+                      <div
+                        className={`image-frame ${opaque && !original ? "" : "checker"}`}
+                        style={{
+                          aspectRatio: String(frameRatio),
+                          backgroundColor:
+                            opaque && !original
+                              ? settings.background
+                              : undefined,
+                        }}
+                      >
+                        <img
+                          src={
+                            !original && selected.outputPreview
+                              ? selected.outputPreview
+                              : selected.preview
+                          }
+                          alt={`${original ? "Original" : "Output preview of"} ${selected.name}`}
+                          style={{
+                            objectFit:
+                              original ||
+                              selected.outputPreview ||
+                              !settings.resize
                                 ? "contain"
-                                : "fill",
-                        objectPosition: `${selected.crop.x}% ${selected.crop.y}%`,
-                      }}
-                    />
+                                : settings.mode === "crop"
+                                  ? "cover"
+                                  : settings.mode === "fit"
+                                    ? "contain"
+                                    : "fill",
+                            objectPosition: `${selected.crop.x}% ${selected.crop.y}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                   <div className="preview-caption">
                     <span>
@@ -693,120 +841,15 @@ export default function App() {
               <span>All nine formats, in & out</span>
               <span className="supported-detail">First frame / page only</span>
             </div>
-            {!!items.length && (
-              <div className="batch">
-                <div className="batch-heading">
-                  <h2>
-                    Your images <span>{items.length}</span>
-                  </h2>
-                  <div>
-                    <button
-                      className="text-button"
-                      disabled={!!busy || items.length >= MAX_FILES}
-                      onClick={() => input.current.click()}
-                    >
-                      <Icon as={PlusIcon} /> Add images
-                    </button>
-                    <button
-                      className="text-button"
-                      disabled={!!busy}
-                      onClick={clear}
-                    >
-                      Clear all
-                    </button>
-                  </div>
-                </div>
-                <ul className="file-list">
-                  {items.map((item) => (
-                    <li
-                      className={item.id === selected?.id ? "active" : ""}
-                      key={item.id}
-                    >
-                      <button
-                        className="file-select"
-                        onClick={() => {
-                          setSelectedId(item.id);
-                          setOriginal(false);
-                        }}
-                        aria-pressed={item.id === selected?.id}
-                      >
-                        {item.preview ? (
-                          <img src={item.preview} alt="" />
-                        ) : (
-                          <span className="file-placeholder">
-                            <Icon as={FileIcon} />
-                          </span>
-                        )}
-                        <span className="file-details">
-                          <strong>{item.name}</strong>
-                          <span>
-                            {item.width
-                              ? `${item.width} × ${item.height} · `
-                              : ""}
-                            {sizeText(item.file.size)}
-                            {item.result
-                              ? ` → ${sizeText(item.result.size)}`
-                              : ""}
-                          </span>
-                        </span>
-                      </button>
-                      <span className={`file-status ${item.status}`}>
-                        <Icon
-                          as={
-                            item.status === "done"
-                              ? CheckCircledIcon
-                              : item.status === "error"
-                                ? ExclamationTriangleIcon
-                                : FileIcon
-                          }
-                        />
-                        <span>
-                          {
-                            {
-                              loading: "Reading",
-                              ready: "Ready",
-                              converting: "Converting",
-                              done: "Done",
-                              error: "Failed",
-                            }[item.status]
-                          }
-                        </span>
-                      </span>
-                      <button
-                        className="icon-button"
-                        disabled={!item.result || !!busy}
-                        aria-label={`Download ${item.name}`}
-                        onClick={() => saveBlob(item.result, item.outputName)}
-                      >
-                        <Icon as={DownloadIcon} />
-                      </button>
-                      <button
-                        className="icon-button"
-                        disabled={!!busy}
-                        aria-label={`Remove ${item.name}`}
-                        onClick={() => remove(item)}
-                      >
-                        <Icon as={Cross2Icon} />
-                      </button>
-                      {item.error && (
-                        <p className="file-error" role="alert">
-                          {item.error}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
           <aside className="settings" aria-label="Output settings">
             <div className="settings-heading">
-              <h2>Output settings</h2>
-              <span>Applies to your batch</span>
+              <h2>Export</h2>
+              <span className="output-extension">.{settings.format}</span>
             </div>
             <div className="settings-content">
               <fieldset className="setting-group format-fieldset">
-                <legend className="field-label">Convert to</legend>
+                <legend className="field-label">Output format</legend>
                 <div className="format-grid">
                   {FORMATS.map((f) => (
                     <label key={f} className="format-option">
@@ -1104,21 +1147,16 @@ export default function App() {
         <div className="status-line" role="status" aria-live="polite">
           {!busy && status}
         </div>
-        <div className="under-tool">
-          <p>
-            <Icon as={LockClosedIcon} /> Private by design. Processing stays in
-            this tab.
-          </p>
-          <Help />
-        </div>
-        <footer>
+        <footer className="app-footer">
           <span>
-            Image Utility <span className="footer-separator">/</span> A useful
-            little workbench.
+            <Icon as={LockClosedIcon} /> No accounts. No image uploads.
           </span>
-          <a href="/third-party-notices.txt" target="_blank" rel="noreferrer">
-            Open-source codec notices <Icon as={ArrowRightIcon} />
-          </a>
+          <div>
+            <Help />
+            <a href="/third-party-notices.txt" target="_blank" rel="noreferrer">
+              Third-party notices <Icon as={ArrowRightIcon} />
+            </a>
+          </div>
         </footer>
       </main>
     </>
